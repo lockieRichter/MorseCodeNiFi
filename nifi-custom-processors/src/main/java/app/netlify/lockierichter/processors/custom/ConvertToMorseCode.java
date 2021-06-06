@@ -1,17 +1,11 @@
 package app.netlify.lockierichter.processors.custom;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -23,8 +17,6 @@ import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.ProcessorInitializationContext;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.processor.io.InputStreamCallback;
-import org.apache.nifi.processor.io.OutputStreamCallback;
 
 @Tags({ "Morse", "Code", "Converter" })
 @CapabilityDescription("Converts the text in a FlowFile to Morse Code and writes it back out.")
@@ -73,29 +65,17 @@ public class ConvertToMorseCode extends AbstractProcessor {
             return;
         }
 
-        final AtomicReference<String> flowFileText = new AtomicReference<>();
+        FlowFileReader flowFileReader = new FlowFileReader();
 
         // To read the contents of the FlowFile
-        session.read(flowFile, new InputStreamCallback() {
-            @Override
-            public void process(InputStream in) throws IOException {
-                String textValue = IOUtils.toString(in, Charset.defaultCharset());
-                flowFileText.set(textValue);
-            }
-        });
+        session.read(flowFile, flowFileReader);
+        String morseCodeText = convertTextToMorseCode(flowFileReader.getFlowFileText());
+        FlowFileWriter flowFileWriter = new FlowFileWriter(morseCodeText);
 
         // To write the results back out to FlowFile
-        flowFile = session.write(flowFile, new OutputStreamCallback() {
-
-            @Override
-            public void process(OutputStream out) throws IOException {
-                String morseCodeText = convertTextToMorseCode(flowFileText.get());
-                out.write(morseCodeText.getBytes());
-            }
-        });
+        flowFile = session.write(flowFile, flowFileWriter);
 
         session.transfer(flowFile, REL_SUCCESS);
-
     }
 
     /**
@@ -141,4 +121,5 @@ public class ConvertToMorseCode extends AbstractProcessor {
 
         return sb.toString().trim();
     }
+
 }
